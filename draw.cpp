@@ -1,8 +1,8 @@
 // taken from
 // http://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/perspective-correct-interpolation-vertex-attributes
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include "gl.hpp"
 
 extern "C" {
@@ -10,10 +10,8 @@ extern "C" {
   extern const size_t height = 512;
 }
 
-using namespace ::sl;
-
 template<typename T>
-static mat4<T>
+static ::gl::sl::mat<4,T>
 perspective(T fovy, T aspect, T near, T far) {
   T f = 1.0 / tan(fovy / 2.0);
   T dz = near - far;
@@ -25,62 +23,62 @@ perspective(T fovy, T aspect, T near, T far) {
   };
 }
 
+template<typename T>
+struct Vertex {
+  VERTEX_SHADER(Vertex, T);
+
+  UNIFORM(perspective, mat4);
+  ATTRIBUTE(position, vec3);
+  ATTRIBUTE(aColor, vec3);
+  VARYING(vColor, vec3);
+
+  void
+  main() {
+    gl_Position = perspective * vec4 {position, 1.0};
+    vColor = aColor;
+  }
+};
+
+template<typename T>
+struct Fragment {
+  FRAGMENT_SHADER(Fragment, T);
+
+  VARYING(vColor, vec3);
+
+  void
+  main() {
+    gl_FragColor = {vColor, 1.0};
+  }
+};
+
+
 extern "C" void
 draw(unsigned char buffer[][4]) {
   memset(buffer, 0, sizeof(unsigned char)*height*width*4);
 
-  struct Program {
-    typedef float T;
+  using Program = ::gl::Link<float, Vertex, Fragment>;
+  using T = typename Program::Float;
+  using vec3 = typename Program::vec3;
 
-    mat4<T> Perspective;
-    vec3<T> *Position;
-    vec3<T> *Color;
+  Program prog(3);
 
-    vec4<T>
-    vertex(size_t i) {
-      vec4<T> gl_Position;
-      [&gl_Position = gl_Position,
-       &Position = Position[i],
-       &Perspective = Perspective,
-       &Color = Color[i]]{
-        gl_Position = Perspective * vec4<T> {Position, 1.0};
-        varying(gl_Position, Color);
-      }();
-      return gl_Position;
-    }
+  auto p = perspective<T>(::gl::sl::radians(90.0), T(width)/T(height), 0.1, 100.0);
 
-    vec4<T>
-    fragment(vec3<T> const& P, vec3<size_t> const& i){
-      vec4<T> gl_FragColor;
-
-      [&gl_FragColor = gl_FragColor,
-       Color = interpolate(P, Color, i)] {
-        gl_FragColor = {Color, 1.0};
-      }();
-
-      return gl_FragColor;
-    }
-  };
-
-  Program prog;
-
-  typedef Program::T T;
-
-  vec3<T> Position[] = {
+  vec3 position[] = {
     { -48.0, -10.0,   82.0 },
     {  29.0, -15.0,   44.0 },
     {  13.0,  34.0,  114.0 },
   };
 
-  vec3<T> Color[] = {
+  vec3 color[] = {
     {1.0, 0.0, 0.0},
     {0.0, 1.0, 0.0},
     {0.0, 0.0, 1.0},
   };
 
-  prog.Perspective = perspective<T>(radians(90.0), T(width)/T(height), 0.1, 100.0);
-  prog.Position = Position;
-  prog.Color = Color;
+  prog.uniform.set(S_("perspective"), &p);
+  prog.attribute.set(S_("position"), position);
+  prog.attribute.set(S_("aColor"), color);
 
-  ::gl::Context(width, height, buffer).draw(prog, 3, ::gl::Triangles(3));
+  ::gl::Context(width, height, buffer).draw(prog, ::gl::triangles);
 }

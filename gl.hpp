@@ -1,32 +1,25 @@
 #pragma once
 #include "sl.hpp"
+#include "shader.hpp"
 
 namespace gl {
-  using namespace ::sl;
+  using namespace sl;
 
   template<typename T>
   T
-  area2(vec2<T> const& v0, vec2<T> const& v1, vec2<T> const& v2) {
-    return cross(vec3<T> {v1 - v0, 0.0}, vec3<T> {v2 - v0, 0.0}).z;
-  }
-
-  template<typename T>
-  size_t
-  min3(T x, T y, T z, size_t w) {
-    return max(size_t(floor(min(min(x,y),z))), w);
-  }
-
-  template<typename T>
-  size_t
-  max3(T x, T y, T z, size_t w) {
-    return min(size_t(ceil(max(max(x,y),z))), w);
+  area2(vec<2,T> const& v0, vec<2,T> const& v1, vec<2,T> const& v2) {
+    return cross(vec<3,T> {v1 - v0, 0.0}, vec<3,T> {v2 - v0, 0.0}).z;
   }
 
   template<typename T>
   bool
-  outside(vec2<T> const& u, vec2<T> const& v, vec2<T> box[4]) {
-    return (vec4<T> { area2(u,v,box[0]), area2(u,v,box[1]), area2(u,v,box[2]), area2(u,v,box[3]) }) < T(0.0);
+  outside(vec<2,T> const& u, vec<2,T> const& v, vec<2,T> box[4]) {
+    return all(lessThan(vec<4,T>{ area2(u,v,box[0]), area2(u,v,box[1]), area2(u,v,box[2]), area2(u,v,box[3]) }, {0.0}));
   }
+
+  struct ID {
+    size_t operator[](size_t n) const { return n; }
+  };
 
   struct Context {
     const size_t width, height;
@@ -36,112 +29,113 @@ namespace gl {
       : width(width), height(height), buffer(buffer) {
     }
 
-    template<typename Prog, typename Triangle>
+    template<typename Prog>
     void
-    draw(Prog& prog, size_t N, Triangle const& triangles) {
-      struct ID {
-        size_t operator[](size_t n) const { return n; }
-      };
-
-      draw(prog, N, triangles, ID());
+    draw(Prog& prog, void (*primitive)(Context&, Prog&, ID const&)) {
+      draw(prog, ID(), primitive);
     }
 
-    template<typename Prog, typename Triangle, typename Index>
+    template<typename Prog, typename Index>
     void
-    draw(Prog& prog, size_t N, Triangle const& triangles, Index const& Idx){
-      typedef typename Prog::T T;
+    draw(Prog& prog, Index const& index, void (*primitive)(Context&, Prog&, Index const&)) {
+      using T = typename Prog::Float;
+      using Vertex = typename Prog::Vertex;
 
-      vec4<T> gl_Position[N];
+      for(size_t i=0; i<prog.vertices; i++) {
+        char buf[sizeof(Vertex)] = {0};
+        auto v = (Vertex *)buf;
 
-      for(size_t i=0; i<N; i++) {
-        gl_Position[i] = prog.vertex(i);
-        gl_Position[i] = {((gl_Position[i] + T(1.0)) * T(0.5) * vec3<T> {T(width), T(height), 1.0}), gl_Position[i].w};
+        vec<4,T> p;
+
+        v->_ptr_gl_Position = &p;
+        prog.uniform.bind(v);
+        prog.attribute.bind(v, i);
+        prog.varying.bind(v, i);
+        v->main();
+
+        p = {vec<3,T>(p) / p.w, T(1.0) / p.w};
+
+        Prog::fix_varying(v, p.w);
+
+        prog.gl_Position[i] = {(vec<3,T> {p + T(1.0)} * T(0.5) * vec<3,T> {T(width), T(height), 1.0}), p.w};
       }
 
-      for(auto idx : triangles) {
-        idx = {Idx[idx.x], Idx[idx.y], Idx[idx.z]};
-        vec4<T> v[3] = {gl_Position[idx.x], gl_Position[idx.y], gl_Position[idx.z]};
+      primitive(*this, prog, index);
+    }
+  };
 
-        size_t left   = min3(v[0].x, v[1].x, v[2].x, 0);
-        size_t right  = max3(v[0].x, v[1].x, v[2].x, width);
-        size_t bottom = min3(v[0].y, v[1].y, v[2].y, 0);
-        size_t top    = max3(v[0].y, v[1].y, v[2].y, height);
 
-        if((left >= right) || (bottom >= top))
-          continue;
+  template<typename Prog>
+  void
+  draw_triangle(Context& context, Prog& prog, ::std::size_t i0, ::std::size_t i1, ::std::size_t i2) {
+      using T = typename Prog::Float;
+      using Fragment = typename Prog::Fragment;
 
-        auto area = area2<T>(v[0], v[1], v[2]);
+      ::std::size_t width = context.width;
+      ::std::size_t height = context.height;
 
-        for(size_t by=bottom; by<top; by+=4)
-          for(size_t bx=left; bx<right; bx+=4) {
-            size_t bx2 = min(bx+4, right);
-            size_t by2 = min(by+4, top);
-            vec2<T> box[4] = {
-              {T(bx), T(by)},  {T(bx2), T(by)},
-              {T(bx), T(by2)}, {T(bx2), T(by2)}
-            };
+      auto v0 = prog.gl_Position[i0];
+      auto v1 = prog.gl_Position[i1];
+      auto v2 = prog.gl_Position[i2];
 
-            if (outside<T>(v[1], v[2], box) ||
-                outside<T>(v[2], v[0], box) ||
-                outside<T>(v[0], v[1], box))
-              continue;
+      auto area = area2<T>(v0, v1, v2);
 
-            for(size_t y=by; y<by2; ++y)
-              for(size_t x=bx; x<bx2; ++x) {
-                vec2<T> p = {T(x+0.5), T(y+0.5)};
-                vec3<T> P = {area2<T>(v[1], v[2], p), area2<T>(v[2], v[0], p), area2<T>(v[0], v[1], p)};
+      for(size_t by=0; by<height; by+=4)
+        for(size_t bx=0; bx<width; bx+=4) {
+          size_t bx2 = min(bx+4, width);
+          size_t by2 = min(by+4, height);
 
-                if (!(P >= T(0.0)))
-                  continue;
+          vec<2,T> box[4] = {
+            {T(bx), T(by)},  {T(bx2), T(by)},
+            {T(bx), T(by2)}, {T(bx2), T(by2)}
+          };
 
-                P = P / area;
-                vec4<T> gl_FragCoord = {
+          if (outside<T>(v1, v2, box) ||
+              outside<T>(v2, v0, box) ||
+              outside<T>(v0, v1, box))
+            continue;
+
+          for(size_t y=by; y<by2; ++y)
+            for(size_t x=bx; x<bx2; ++x) {
+              vec<2,T> p = {T(x+0.5), T(y+0.5)};
+              vec<3,T> P = {area2<T>(v1, v2, p), area2<T>(v2, v0, p), area2<T>(v0, v1, p)};
+
+              if (!all(greaterThan(P, {0.0})))
+                continue;
+
+              P = P / area;
+              vec<4,T> gl_FragCoord = {
                   p,
-                  interpolate(P, v[0].z, v[1].z, v[2].z),
-                  interpolate(P, v[0].w, v[1].w, v[2].w)
-                };
+                  interpolate(P, v0.z, v1.z, v2.z),
+                  interpolate(P, v0.w, v1.w, v2.w)
+              };
 
-                P = P / gl_FragCoord.w;
-                vec4<T> gl_FragColor = prog.fragment(P, idx);
+              P = P / gl_FragCoord.w;
 
-                for(int i=0; i<4; i++)
-                  buffer[(height-1-y)*width+x][i] = gl_FragColor[i] * 255;
-              }
-          }
+              char buf[sizeof(Fragment)] = {0};
+              auto f = (Fragment *)buf;
 
-      }
+              vec<4,T> color;
+
+              f->_ptr_gl_FragColor = &color;
+              prog.uniform.bind(f);
+
+              auto i = prog.interpolate(P, i0, i1, i2);
+              i.bind(f);
+              f->main();
+
+              for(::std::size_t i=0; i<4; i++)
+                context.buffer[(height-1-y)*width+x][i] = color[i] * 255;
+            }
+
+        }
+  }
+
+  template<typename Prog, typename Index>
+  void
+  triangles(Context& context, Prog& prog, Index const& index) {
+    for(::std::size_t i=0; (i+2) < prog.vertices; i+=3) {
+      draw_triangle(context, prog, index[i], index[i+1], index[i+2]);
     }
-  };
-
-
-  struct Triangles {
-    size_t N;
-    Triangles(size_t N) : N(N) { }
-    struct Iterator {
-      size_t N;
-      Iterator(size_t N) : N(N) { }
-      Iterator& operator++() { N += 3; return *this; }
-      bool operator!=(Iterator const& o) const { return N != o.N; }
-      auto operator*() const { return vec3<size_t> {N, N+1, N+2}; }
-    };
-    Iterator begin() const { return Iterator(0); }
-    Iterator end()   const { return Iterator(N); }
-  };
-
-
-  struct TriangleStrip {
-    size_t N;
-    TriangleStrip(size_t N) : N(N) { }
-
-    struct Iterator {
-      size_t N;
-      Iterator(size_t N) : N(N) { }
-      Iterator& operator++() { N += 2; return *this; }
-      bool operator!=(Iterator const& o) const { return N != o.N; }
-      auto operator*() { return (N%4==0)?(vec3<size_t> {N, N+1, N+2}):(vec3<size_t> {N, N-1, N+1}); }
-    };
-
-    Iterator begin() const { return Iterator(0); }
-    Iterator end()   const { return Iterator(N); }
-  };
+  }
 }
