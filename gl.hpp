@@ -64,7 +64,6 @@ namespace gl {
     }
   };
 
-
   template<typename Prog>
   void
   draw_triangle(Context& context, Prog& prog, ::std::size_t i0, ::std::size_t i1, ::std::size_t i2) {
@@ -124,10 +123,12 @@ namespace gl {
               i.bind(f);
               f->main();
 
-              for(::std::size_t i=0; i<4; i++)
-                context.buffer[(height-1-y)*width+x][i] = color[i] * 255;
+              unsigned char (&xrgb)[4] = context.buffer[(height-1-y)*width+x];
+              xrgb[0] = color.b * 255;
+              xrgb[1] = color.g * 255;
+              xrgb[2] = color.r * 255;
+              xrgb[3] = color.a * 255;
             }
-
         }
   }
 
