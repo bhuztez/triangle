@@ -76,9 +76,9 @@ draw(unsigned char buffer[][4]) {
     {0.0, 0.0, 1.0},
   };
 
-  prog.uniform.set(S_("perspective"), &p);
-  prog.attribute.set(S_("position"), position);
-  prog.attribute.set(S_("aColor"), color);
+  prog.uniform.set("perspective"_s, &p);
+  prog.attribute.set("position"_s, position);
+  prog.attribute.set("aColor"_s, color);
 
   ::gl::Context(width, height, buffer).draw(prog, ::gl::triangles);
 }

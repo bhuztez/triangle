@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cstddef>
 #include <type_traits>
-#include <utility>
+
 
 namespace gl {
   namespace shader {
@@ -19,19 +19,7 @@ namespace gl {
       using TYPE = LIST<T..., U>;
     };
 
-
     template <char...> struct STRING {};
-
-    template <typename, typename> struct _MAKE_STRING;
-
-    template <typename S, template <typename U, U...> typename T, typename U, U... I>
-    struct _MAKE_STRING<S, T<U, I...>> {
-      using TYPE = STRING<S{}.s[I]...>;
-    };
-
-    template <typename S>
-    using MAKE_STRING = typename _MAKE_STRING<S, ::std::make_index_sequence<sizeof(S) - 1>>::TYPE;
-
 
     template<typename N, typename V>
     struct PAIR {
@@ -266,27 +254,13 @@ namespace gl {
       return true;
     }
 
-    template<typename> struct INIT_NAME;
-
-    template<typename N, typename T, typename V, V* T::* M>
-    struct INIT_NAME<MEMBER<N,T,V,M>> {
-      using TYPE = MEMBER<MAKE_STRING<::std::remove_pointer_t<N>>,T,V,M>;
-    };
-
-    template<typename> struct COLLECT_MEMBER;
-
-    template<typename... M>
-    struct COLLECT_MEMBER<LIST<M...>> {
-      using TYPE = LIST<typename INIT_NAME<M>::TYPE...>;
-    };
-
     template<template<typename> typename TYPE, typename T,
              typename = ::std::enable_if_t<defined<T>(0)>,
              size_t C = next<TYPE<T>>(0),
              typename = ::std::enable_if_t<(C > 0)>,
              typename State = decltype(state(Counter<TYPE<T>,C-1>{}))
              >
-    using MEMBERS = typename COLLECT_MEMBER<State>::TYPE;
+    using MEMBERS = State;
 
     template<typename Program, typename... M>
     struct INTERPOLATION {
@@ -399,25 +373,21 @@ namespace gl {
   using shader::Link;
 }
 
-
-#define S_(str)                                 \
-  ({                                            \
-    struct S {                                  \
-      const char s[sizeof(str)] = (str);        \
-    };                                          \
-    ::gl::shader::MAKE_STRING<S>();             \
-  })
+template <typename T, T... chars>
+constexpr ::gl::shader::STRING<chars...>
+operator""_s() {
+  return { };
+}
 
 
 #define _VAR(t, v, ...)                                 \
   union {                                               \
     ::std::add_lvalue_reference_t< __VA_ARGS__ > v;     \
     ::std::add_pointer_t< __VA_ARGS__ > _ptr_##v;       \
-    struct {const char s[sizeof(#v)] = #v;} *_name_##v; \
   };                                                    \
   static_assert(                                        \
                 ::gl::shader::declare<t, __CLASS__,     \
-                decltype(__CLASS__::_name_##v),         \
+                decltype(#v##_s),                       \
                 __VA_ARGS__,                            \
                 &__CLASS__::_ptr_##v>())
 
