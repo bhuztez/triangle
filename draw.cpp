@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <cstring>
 #include "gl.hpp"
 
@@ -31,7 +30,7 @@ struct Vertex {
 
   void
   main() {
-    gl_Position = perspective * vec4 {position, 1.0};
+    gl_Position = perspective * vec4(position, 1.0);
     vColor = aColor;
   }
 };
@@ -44,7 +43,7 @@ struct Fragment {
 
   void
   main() {
-    gl_FragColor = {vColor, 1.0};
+    gl_FragColor = vec4(vColor, 1.0);
   }
 };
 
