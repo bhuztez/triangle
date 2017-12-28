@@ -32,7 +32,7 @@ namespace gl {
     template<typename K, typename V, typename... L>
     struct LOOKUP<K, LIST<PAIR<K,V>, L...>, void> {
       using TYPE = V;
-    };
+   };
 
     template<typename K, typename V, typename... L>
     struct LOOKUP<K, LIST<V, L...>, ::std::void_t<typename LOOKUP<K, LIST<L...>>::TYPE>> {
@@ -164,14 +164,14 @@ namespace gl {
       inline
       void
       set(T, LOOKUP_T<T, FIELDS> *p) {
-        data.set<T>(p);
+        data.template set<T>(p);
       }
 
       template<typename T, typename... L>
       inline
       void
       bind(T *x, size_t n, LIST<L...>) {
-        data.bind<T,L...>(x, n);
+        data.template bind<T,L...>(x, n);
       }
 
       template<typename T, typename L = LOOKUP_T<T, LIST<M...>>>
@@ -379,10 +379,11 @@ operator""_s() {
   return { };
 }
 
-
 #define _VAR(t, v, ...)                                 \
   union {                                               \
-    ::std::add_lvalue_reference_t< __VA_ARGS__ > v;     \
+    struct {                                            \
+      ::std::add_lvalue_reference_t< __VA_ARGS__ > v;   \
+    };                                                  \
     ::std::add_pointer_t< __VA_ARGS__ > _ptr_##v;       \
   };                                                    \
   static_assert(                                        \
@@ -409,7 +410,9 @@ operator""_s() {
   using mat3 = ::gl::sl::mat<3,F>;                                      \
   using mat4 = ::gl::sl::mat<4,F>;                                      \
   union {                                                               \
-    vec4& gl_Position;                                                  \
+    struct {                                                            \
+      vec4& gl_Position;                                                \
+    };                                                                  \
     vec4* _ptr_gl_Position;                                             \
   }
 
@@ -424,6 +427,8 @@ operator""_s() {
   using mat3 = ::gl::sl::mat<3,F>;                                      \
   using mat4 = ::gl::sl::mat<4,F>;                                      \
   union {                                                               \
-    vec4& gl_FragColor;                                                 \
+    struct {                                                            \
+      vec4& gl_FragColor;                                               \
+    };                                                                  \
     vec4* _ptr_gl_FragColor;                                            \
   }
