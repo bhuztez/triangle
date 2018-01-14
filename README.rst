@@ -2,6 +2,9 @@
 triangle
 ========
 
+.. image:: https://travis-ci.org/bhuztez/triangle.svg?branch=master
+    :target: https://travis-ci.org/bhuztez/triangle
+
 There are many good OpenGL tutorials out there. They have good
 explanation on how OpenGL works. However, most of them treat OpenGL as
 a black box. It would be better to implement a small part of OpenGL to

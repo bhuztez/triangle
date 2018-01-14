@@ -3,9 +3,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <sys/mman.h>
-#include <sys/syscall.h>
-#include <linux/memfd.h>
 #include <wayland-client.h>
 
 
@@ -131,12 +131,13 @@ create_window(struct client *client, struct window *window) {
   wl_shell_surface_add_listener(window->shell_surface, &shell_surface_listener, NULL);
   wl_shell_surface_set_toplevel(window->shell_surface);
 
-  int fd = syscall(SYS_memfd_create, "wayland-shm", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+  int fd = open("/dev/shm", O_TMPFILE|O_CLOEXEC|O_RDWR, S_IRUSR|S_IWUSR);
   ASSERT(fd != -1, "cannot create shm");
 
   int size = width*height*4;
 
-  ftruncate(fd, size*2);
+  ASSERT(ftruncate(fd, size*2) == 0, strerror(errno));
+
   struct wl_shm_pool *pool = wl_shm_create_pool(client->shm, fd, size*2);
   ASSERT(pool, "cannot create pool");
 
