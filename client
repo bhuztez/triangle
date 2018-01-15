@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+matchbox-window-manager &
+x11vnc -bg -nopw -forever -localhost &
+websockify --web="${NOVNC_HOME}" 8000 127.0.0.1:5900 &
+sleep 1
+
+export XDG_RUNTIME_DIR="/dev/shm"
+weston --fullscreen --use-pixman

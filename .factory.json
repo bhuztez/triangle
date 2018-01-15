@@ -1,0 +1,58 @@
+{
+    "v": "4.0",
+    "workspace": {
+        "name": "triangle",
+        "links": [],
+        "commands": [
+            {
+                "name": "weston",
+                "type": "custom",
+                "commandLine": "cd ${current.project.path}\nexport NOVNC_HOME=/opt/noVNC\nxvfb-run -s '-screen 0 800x600x24+32' ./client\n",
+                "attributes": {
+                    "goal": "Run",
+                    "previewUrl": "http://${server.port.8000}/vnc_auto.html"
+                }
+            }
+        ],
+        "projects": [
+            {
+                "name": "triangle",
+                "type": "blank",
+                "description": "",
+                "path": "/triangle",
+                "source": {
+                    "type": "git",
+                    "location": "git://github.com/bhuztez/triangle.git",
+                    "parameters": {}
+                },
+                "mixins": [],
+                "attributes": {},
+                "modules": []
+            }
+        ],
+        "defaultEnv": "default",
+        "environments": {
+            "default": {
+                "recipe": {
+                    "content": "FROM eclipse/stack-base:ubuntu\nRUN sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && sudo apt-get update && sudo apt-get install -y --no-install-recommends make x11vnc xvfb matchbox-window-manager weston libwayland-dev g++-7 python3 python3-pip && sudo -H pip3 install --upgrade pip && sudo -H pip3 install setuptools && sudo -H pip3 install websockify && sudo mkdir -p /opt/noVNC && wget -qO- 'https://github.com/novnc/noVNC/archive/v0.6.2.tar.gz' | sudo tar -zx --strip-components=1 -C /opt/noVNC\nENV CC gcc-7\nENV CXX g++-7\nEXPOSE 8000\n",
+                    "type":"dockerfile",
+                    "contentType": "text/x-dockerfile"
+                },
+                "machines": {
+                    "dev-machine": {
+                        "servers": {},
+                        "agents": [
+                            "org.eclipse.che.terminal",
+                            "org.eclipse.che.ws-agent",
+                            "org.eclipse.che.ssh",
+                            "org.eclipse.che.exec"
+                        ],
+                        "attributes": {
+                            "memoryLimitBytes": "2147483648"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
